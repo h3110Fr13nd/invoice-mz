@@ -291,3 +291,49 @@ Invoice Easy is now a fully functional, production-ready invoice management appl
 - Complete conversation history tracking
 
 Perfect for busy professionals who need efficient, intelligent invoice management on the go.
+\n+## 🏗 Deployment Notes (Prisma on Vercel)
+
+When deploying to Vercel, the build cache can cause the Prisma Client to become outdated if `prisma generate` is not executed during the build. This results in runtime errors like:
+
+```
+Prisma has detected that this project was built on Vercel, which caches dependencies. This leads to an outdated Prisma Client because Prisma's auto-generation isn't triggered.
+```
+
+### Fix Implemented
+
+The project adds a `postinstall` script in `package.json`:
+
+```json
+"scripts": {
+  "postinstall": "prisma generate"
+}
+```
+
+Vercel runs `npm install` (or `pnpm install` / `yarn install`) which triggers `postinstall`, ensuring the client is freshly generated before `next build` runs.
+
+### If You Still See the Error
+1. Make sure the `postinstall` script exists locally.
+2. Trigger a clean build on Vercel (Deployment > Redeploy > Clear build cache & redeploy).
+3. Confirm `prisma` and `@prisma/client` versions match in `package.json`.
+4. Run locally:
+   ```bash
+   rm -rf node_modules .prisma
+   npm install
+   npm run build
+   ```
+5. If using environments with different schemas, ensure `DATABASE_URL` is defined at build time (Vercel Project Settings > Environment Variables).
+
+### Alternative (Explicit Build Step)
+You can also modify the build script instead of (or in addition to) `postinstall`:
+
+```json
+"build": "prisma generate && next build"
+```
+
+Keeping `postinstall` is generally preferred because it works with any build process and local development after dependency changes.
+
+### Edge / Serverless Considerations
+Prisma works best with the Node.js runtime. Ensure your API routes using Prisma are not forced into the Edge runtime. If you add `export const runtime = 'edge'` to a route that imports Prisma, move Prisma-dependent logic to a Node.js function route instead.
+
+---
+Deployment should now succeed without the Prisma Client initialization error.
